@@ -14,7 +14,9 @@ namespace Azure.Failover
         private Stores.IStore store;
         private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private readonly ManualResetEvent runCompleteEvent = new ManualResetEvent(false);
+        public delegate Task AsyncEventHandler(object sender, EventArgs e);
         public event EventHandler Run;
+        public event AsyncEventHandler RunAsync;
 
         private Semaphore(Stores.StoreType storeType, int delay) 
         {
@@ -74,7 +76,7 @@ namespace Azure.Failover
 
             try
             {
-                this.RunAsync(this.cancellationTokenSource.Token).Wait();
+                this.RunSemaphoreAsync(this.cancellationTokenSource.Token).Wait();
             }
             finally
             {
@@ -86,7 +88,7 @@ namespace Azure.Failover
             this.cancellationTokenSource.Cancel();
             this.runCompleteEvent.WaitOne();
         }
-        private async Task RunAsync(CancellationToken cancellationToken)
+        private async Task RunSemaphoreAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -96,6 +98,10 @@ namespace Azure.Failover
                     if (Run != null)
                     {
                         Run(this, EventArgs.Empty);
+                    }
+                    if (RunAsync != null)
+                    {
+                        await RunAsync(this, EventArgs.Empty);
                     }
                     await Task.Delay(Delay);
                 }

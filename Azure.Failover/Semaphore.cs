@@ -67,7 +67,7 @@ namespace Azure.Failover
                     {
                         throw new ApplicationException("TableStorageOptions is not set");
                     }
-                    store = new Stores.TableStorageStore(TableStorageOptions, Delay * 2);
+                    store = new Stores.TableStorageStore(TableStorageOptions, Delay * 2, Delay * 8);
                     break;
                 default:
                     throw new ApplicationException(String.Format("{0} not implemented yet"));

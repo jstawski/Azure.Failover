@@ -22,7 +22,7 @@ namespace WorkerRole1
             Trace.TraceInformation("WorkerRole1 is running");
             try
             {
-                Azure.Failover.Semaphore.Instance.Run += Semaphore_Run;
+                //Azure.Failover.Semaphore.Instance.Run += Semaphore_Run;
                 Azure.Failover.Semaphore.Instance.RunAsync += Semaphore_RunAsync;
                 Azure.Failover.Semaphore.Instance.TableStorageOptions = new Azure.Failover.Stores.TableStorageOptions
                 {
@@ -36,18 +36,29 @@ namespace WorkerRole1
                 this.runCompleteEvent.Set();
             }
         }
-
+        int count = 0;
         async Task Semaphore_RunAsync(object sender, EventArgs e)
         {
-            await Task.Delay(5000);
-            Trace.TraceInformation("Working from Async" + Azure.Failover.Semaphore.Instance.InstanceIndex);
+            count++;
+            if (count == 10)
+            {
+                count = 0;
+                Trace.TraceError("Simulating crash - sleeping for 20 seconds");
+                await Task.Delay(20 * 1000);
+            }
+            else
+            {
+                await Task.Delay(100);
+            }
+            
+            Trace.TraceError("{0}: ---------------> Working from Async {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
         }
 
         void Semaphore_Run(object sender, EventArgs e)
         {
             //If you have more than one instance running only one instance at a time will execute this event
             //The method that calls it runs on a loop sleeping the thread on a delay specified.
-            Trace.TraceInformation("Working " + Azure.Failover.Semaphore.Instance.InstanceIndex);
+            Trace.TraceError("---------------> Working {0} <---------------", Azure.Failover.Semaphore.Instance.InstanceIndex);
         }
 
         public override bool OnStart()

@@ -3,6 +3,7 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -14,13 +15,16 @@ namespace Azure.Failover.Stores
     {
         CloudTable table = null;
         string connectionString, tableName;
-        int timeOut;
+        int activeTimeOut, idleTimeOut;
         Models.TableItem item;
-        public TableStorageStore(TableStorageOptions options, int timeOut)
+        bool isRunning = false;
+        DateTime expirationDate = DateTime.MinValue;
+        public TableStorageStore(TableStorageOptions options, int activeTimeOut, int idleTimeOut)
         {
             connectionString = options.ConnectionString;
             tableName = options.TableName;
-            this.timeOut = timeOut;
+            this.activeTimeOut = activeTimeOut;
+            this.idleTimeOut = idleTimeOut;
         }
 
         public async Task SetupAsync(string key, int instanceIndex)
@@ -43,8 +47,11 @@ namespace Azure.Failover.Stores
             {
                 throw new ApplicationException("You must call SetupAsync first!");
             }
-
-            return await TryToClaimSpot();
+            if (!isRunning && ((DateTime.UtcNow - expirationDate).TotalMilliseconds >= idleTimeOut || expirationDate == DateTime.MinValue))
+            {
+                isRunning = await TryToClaimSpot();
+            }
+            return isRunning;
         }
 
         private async Task<bool> TryToClaimSpot()
@@ -58,25 +65,34 @@ namespace Azure.Failover.Stores
                 if (retrieveResult.Result != null)
                 {
                     var retrievedItem = (Models.TableItem)retrieveResult.Result;
+                    Trace.TraceError("{0}: {1} Retrieved item:", DateTime.UtcNow, item.InstanceIndex);
+                    Trace.TraceError("{0}: Expiration Date: {1}", DateTime.UtcNow, retrievedItem.Expiration);
+                    Trace.TraceError("{0}: Instance Index: {1}", DateTime.UtcNow, retrievedItem.InstanceIndex);
+                    expirationDate = retrievedItem.Expiration;
                     // If the retrieved item is this one, extend the timeout
                     if (retrievedItem.InstanceIndex == item.InstanceIndex)
                     {
-                        retrievedItem.Expiration = DateTime.UtcNow.AddMilliseconds(timeOut);
+                        expirationDate = DateTime.UtcNow.AddMilliseconds(activeTimeOut);
+                        retrievedItem.Expiration = expirationDate;
+                        Trace.TraceError("{0}: Same Instance. Updating expiration date from to {1}", DateTime.UtcNow, retrievedItem.Expiration);
                         var updateOperation = TableOperation.Replace(retrievedItem);
                         try
                         {
                             var updateResult = await table.ExecuteAsync(updateOperation);
                             if (updateResult.HttpStatusCode != (int)HttpStatusCode.NoContent)
                             {
+                                Trace.TraceError("{0}: problem updating expiration date", DateTime.UtcNow);
                                 return false;
                             }
                             else
                             {
+                                Trace.TraceError("{0}: updated expiration date", DateTime.UtcNow);
                                 return true;
                             }
                         }
                         catch
                         {
+                            Trace.TraceError("{0}: problem updating expiration date", DateTime.UtcNow);
                             return false;
                         }
 
@@ -85,44 +101,53 @@ namespace Azure.Failover.Stores
                     // Someone else had claimed the spot, see if it's expired
                     if (retrievedItem.Expiration > DateTime.UtcNow)
                     {
+                        Trace.TraceError("{0}: Claimed by someone else and hasn't expired", DateTime.UtcNow);
                         return false;
                     }
-
+                    
                     // It has expired, delete it
                     TableOperation deleteOperation = TableOperation.Delete(retrievedItem);
 
                     try
                     {
+                        Trace.TraceError("{0}: Expired! Trying to delete it", DateTime.UtcNow);
                         var deleteResult = await table.ExecuteAsync(deleteOperation);
                         if (deleteResult.HttpStatusCode != (int)HttpStatusCode.NoContent)
                         {
+                            Trace.TraceError("{0}: Problem deleting", DateTime.UtcNow);
                             return false;
                         }
                     }
                     catch
                     {
+                        Trace.TraceError("{0}: Problem deleting", DateTime.UtcNow);
                         return false;
                     }
                 }
 
                 // If we got here, then it was because no one had claimed the spot before, or an expired item was deleted
                 // Try to claim the spot by inserting it, if someone else inserts it before then it will fail and that's ok
-                item.Expiration = DateTime.UtcNow.AddMilliseconds(timeOut);
+                expirationDate = DateTime.UtcNow.AddMilliseconds(activeTimeOut);
+                item.Expiration = expirationDate;
                 TableOperation insertOperation = TableOperation.Insert(item);
 
                 try
                 {
+                    Trace.TraceError("{0}: Trying to insert item", DateTime.UtcNow);
                     var insertResult = await table.ExecuteAsync(insertOperation);
                     if (insertResult.Result == null)
                     {
+                        Trace.TraceError("{0}: Problem inserting", DateTime.UtcNow);
                         return false;
                     }
                 }
                 catch
                 {
+                    Trace.TraceError("{0}: Problem inserting", DateTime.UtcNow);
                     return false;
                 }
 
+                Trace.TraceError("{0}: Claimed spot", DateTime.UtcNow);
                 return true;
             }
             catch

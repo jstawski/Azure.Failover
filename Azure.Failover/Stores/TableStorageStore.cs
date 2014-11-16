@@ -41,6 +41,7 @@ namespace Azure.Failover.Stores
             item.InstanceIndex = instanceIndex;
         }
 
+
         public async Task<bool> CanRunAsync()
         {
             if (table == null)
@@ -50,6 +51,12 @@ namespace Azure.Failover.Stores
             if (!isRunning && ((DateTime.UtcNow - expirationDate).TotalMilliseconds >= idleTimeOut || expirationDate == DateTime.MinValue))
             {
                 isRunning = await TryToClaimSpot();
+            }
+            else if (isRunning)
+            {
+                Trace.TraceError("{0}: Update Expiration Date", DateTime.UtcNow);
+                //update expiration date without caring for the returned result as it should be true!
+                await TryToClaimSpot();
             }
             return isRunning;
         }

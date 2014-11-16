@@ -76,7 +76,7 @@ namespace Azure.Failover
 
             try
             {
-                this.RunSemaphoreAsync(this.cancellationTokenSource.Token).Wait();
+                await this.RunSemaphoreAsync(this.cancellationTokenSource.Token);
             }
             finally
             {

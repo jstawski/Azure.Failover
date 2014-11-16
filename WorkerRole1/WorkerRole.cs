@@ -58,7 +58,7 @@ namespace WorkerRole1
         {
             //If you have more than one instance running only one instance at a time will execute this event
             //The method that calls it runs on a loop sleeping the thread on a delay specified.
-            Trace.TraceError("---------------> Working {0} <---------------", Azure.Failover.Semaphore.Instance.InstanceIndex);
+            Trace.TraceError("{0}: ---------------> Working {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
         }
 
         public override bool OnStart()

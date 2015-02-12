@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 namespace Azure.Failover.Stores
 {
+    [Obsolete("Has bugs, do not use! Use BlobStorageStore instead")]
     class TableStorageStore : IStore
     {
         CloudTable table = null;
@@ -54,7 +55,7 @@ namespace Azure.Failover.Stores
             }
             else if (isRunning)
             {
-                Trace.TraceError("{0}: Update Expiration Date", DateTime.UtcNow);
+                Trace.TraceInformation("{0}: Update Expiration Date", DateTime.UtcNow);
                 //update expiration date without caring for the returned result as it should be true!
                 await TryToClaimSpot();
             }
@@ -72,34 +73,34 @@ namespace Azure.Failover.Stores
                 if (retrieveResult.Result != null)
                 {
                     var retrievedItem = (Models.TableItem)retrieveResult.Result;
-                    Trace.TraceError("{0}: {1} Retrieved item:", DateTime.UtcNow, item.InstanceIndex);
-                    Trace.TraceError("{0}: Expiration Date: {1}", DateTime.UtcNow, retrievedItem.Expiration);
-                    Trace.TraceError("{0}: Instance Index: {1}", DateTime.UtcNow, retrievedItem.InstanceIndex);
+                    Trace.TraceInformation("{0}: {1} Retrieved item:", DateTime.UtcNow, item.InstanceIndex);
+                    Trace.TraceInformation("{0}: Expiration Date: {1}", DateTime.UtcNow, retrievedItem.Expiration);
+                    Trace.TraceInformation("{0}: Instance Index: {1}", DateTime.UtcNow, retrievedItem.InstanceIndex);
                     expirationDate = retrievedItem.Expiration;
                     // If the retrieved item is this one, extend the timeout
                     if (retrievedItem.InstanceIndex == item.InstanceIndex)
                     {
                         expirationDate = DateTime.UtcNow.AddMilliseconds(activeTimeOut);
                         retrievedItem.Expiration = expirationDate;
-                        Trace.TraceError("{0}: Same Instance. Updating expiration date from to {1}", DateTime.UtcNow, retrievedItem.Expiration);
+                        Trace.TraceInformation("{0}: Same Instance. Updating expiration date from to {1}", DateTime.UtcNow, retrievedItem.Expiration);
                         var updateOperation = TableOperation.Replace(retrievedItem);
                         try
                         {
                             var updateResult = await table.ExecuteAsync(updateOperation);
                             if (updateResult.HttpStatusCode != (int)HttpStatusCode.NoContent)
                             {
-                                Trace.TraceError("{0}: problem updating expiration date", DateTime.UtcNow);
+                                Trace.TraceInformation("{0}: problem updating expiration date", DateTime.UtcNow);
                                 return false;
                             }
                             else
                             {
-                                Trace.TraceError("{0}: updated expiration date", DateTime.UtcNow);
+                                Trace.TraceInformation("{0}: updated expiration date", DateTime.UtcNow);
                                 return true;
                             }
                         }
                         catch
                         {
-                            Trace.TraceError("{0}: problem updating expiration date", DateTime.UtcNow);
+                            Trace.TraceInformation("{0}: problem updating expiration date", DateTime.UtcNow);
                             return false;
                         }
 
@@ -108,7 +109,7 @@ namespace Azure.Failover.Stores
                     // Someone else had claimed the spot, see if it's expired
                     if (retrievedItem.Expiration > DateTime.UtcNow)
                     {
-                        Trace.TraceError("{0}: Claimed by someone else and hasn't expired", DateTime.UtcNow);
+                        Trace.TraceInformation("{0}: Claimed by someone else and hasn't expired", DateTime.UtcNow);
                         return false;
                     }
                     
@@ -117,17 +118,17 @@ namespace Azure.Failover.Stores
 
                     try
                     {
-                        Trace.TraceError("{0}: Expired! Trying to delete it", DateTime.UtcNow);
+                        Trace.TraceInformation("{0}: Expired! Trying to delete it", DateTime.UtcNow);
                         var deleteResult = await table.ExecuteAsync(deleteOperation);
                         if (deleteResult.HttpStatusCode != (int)HttpStatusCode.NoContent)
                         {
-                            Trace.TraceError("{0}: Problem deleting", DateTime.UtcNow);
+                            Trace.TraceInformation("{0}: Problem deleting", DateTime.UtcNow);
                             return false;
                         }
                     }
                     catch
                     {
-                        Trace.TraceError("{0}: Problem deleting", DateTime.UtcNow);
+                        Trace.TraceInformation("{0}: Problem deleting", DateTime.UtcNow);
                         return false;
                     }
                 }
@@ -140,27 +141,33 @@ namespace Azure.Failover.Stores
 
                 try
                 {
-                    Trace.TraceError("{0}: Trying to insert item", DateTime.UtcNow);
+                    Trace.TraceInformation("{0}: Trying to insert item", DateTime.UtcNow);
                     var insertResult = await table.ExecuteAsync(insertOperation);
                     if (insertResult.Result == null)
                     {
-                        Trace.TraceError("{0}: Problem inserting", DateTime.UtcNow);
+                        Trace.TraceInformation("{0}: Problem inserting", DateTime.UtcNow);
                         return false;
                     }
                 }
                 catch
                 {
-                    Trace.TraceError("{0}: Problem inserting", DateTime.UtcNow);
+                    Trace.TraceInformation("{0}: Problem inserting", DateTime.UtcNow);
                     return false;
                 }
 
-                Trace.TraceError("{0}: Claimed spot", DateTime.UtcNow);
+                Trace.TraceInformation("{0}: Claimed spot", DateTime.UtcNow);
                 return true;
             }
             catch
             {
                 return false;
             }
+        }
+
+
+        public Task<bool> CleanUpAsync()
+        {
+            throw new NotImplementedException();
         }
     }
 }

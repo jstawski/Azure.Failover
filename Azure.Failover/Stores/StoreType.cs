@@ -11,6 +11,7 @@ namespace Azure.Failover.Stores
         TableStorage = 0,
         Redis = 1,
         ManagedCache = 2,
-        DocumentDb = 3
+        DocumentDb = 3,
+        BlobStorage = 4
     }
 }

@@ -11,5 +11,7 @@ namespace Azure.Failover.Stores
         Task SetupAsync(string key, int index);
 
         Task<bool> CanRunAsync();
+
+        Task<bool> CleanUpAsync();
     }
 }

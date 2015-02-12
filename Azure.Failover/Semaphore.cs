@@ -33,7 +33,7 @@ namespace Azure.Failover
                     {
                         if (instance == null)
                         {
-                            instance = new Semaphore(Stores.StoreType.TableStorage, 1000);
+                            instance = new Semaphore(Stores.StoreType.BlobStorage, 1000);
                         }
                     }
                 }
@@ -44,6 +44,7 @@ namespace Azure.Failover
         public Stores.StoreType StoreType { get; set; }
         public int InstanceIndex { get; set; }
         public Stores.TableStorageOptions TableStorageOptions { get; set; }
+        public Stores.BlobStorageOptions BlobStorageOptions { get; set; }
         public int Delay { get; set; }
         public async Task RegisterAsync(string key, string roleInstanceId)
         {
@@ -69,6 +70,13 @@ namespace Azure.Failover
                     }
                     store = new Stores.TableStorageStore(TableStorageOptions, Delay * 2, Delay * 8);
                     break;
+                case Stores.StoreType.BlobStorage:
+                    if (BlobStorageOptions == null)
+                    {
+                        throw new ApplicationException("BlobStorageOptions is not set");
+                    }
+                    store = new Stores.BlobStorageStore(BlobStorageOptions);
+                    break;
                 default:
                     throw new ApplicationException(String.Format("{0} not implemented yet"));
             }
@@ -87,7 +95,9 @@ namespace Azure.Failover
         {
             this.cancellationTokenSource.Cancel();
             this.runCompleteEvent.WaitOne();
+            store.CleanUpAsync().Wait();
         }
+
         private async Task RunSemaphoreAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -103,8 +113,8 @@ namespace Azure.Failover
                     {
                         await RunAsync(this, EventArgs.Empty);
                     }
-                    await Task.Delay(Delay);
                 }
+                await Task.Delay(Delay);
             }
         }
     }

@@ -24,11 +24,12 @@ namespace WorkerRole1
             {
                 //Azure.Failover.Semaphore.Instance.Run += Semaphore_Run;
                 Azure.Failover.Semaphore.Instance.RunAsync += Semaphore_RunAsync;
-                Azure.Failover.Semaphore.Instance.TableStorageOptions = new Azure.Failover.Stores.TableStorageOptions
+                Azure.Failover.Semaphore.Instance.BlobStorageOptions = new Azure.Failover.Stores.BlobStorageOptions
                 {
-                    ConnectionString = CloudConfigurationManager.GetSetting("SemaphoreConnectionString")
+                    ConnectionString = CloudConfigurationManager.GetSetting("SemaphoreConnectionString"),
                 };
                 Azure.Failover.Semaphore.Instance.Delay = 1000; //It sleeps the thread every 1000 milliseconds. Default value is 1000 milliseconds if not specified.
+                Azure.Failover.Semaphore.Instance.StoreType = Azure.Failover.Stores.StoreType.BlobStorage;
                 Azure.Failover.Semaphore.Instance.RegisterAsync("dis.workerrole.test", RoleEnvironment.CurrentRoleInstance.Id).Wait();
             }
             finally
@@ -43,22 +44,22 @@ namespace WorkerRole1
             if (count == 10)
             {
                 count = 0;
-                Trace.TraceError("Simulating crash - sleeping for 20 seconds");
+                Trace.TraceWarning("Simulating crash - sleeping for 20 seconds");
                 await Task.Delay(20 * 1000);
             }
             else
             {
-                await Task.Delay(100);
+                var rnd = new Random((int)DateTime.UtcNow.Ticks);
+                await Task.Delay(rnd.Next(300, 5000));
+                Trace.TraceInformation("{0}: ---------------> Working from Async {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
             }
-            
-            Trace.TraceError("{0}: ---------------> Working from Async {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
         }
 
         void Semaphore_Run(object sender, EventArgs e)
         {
             //If you have more than one instance running only one instance at a time will execute this event
             //The method that calls it runs on a loop sleeping the thread on a delay specified.
-            Trace.TraceError("{0}: ---------------> Working {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
+            Trace.TraceInformation("{0}: ---------------> Working {1} <---------------", DateTime.UtcNow, Azure.Failover.Semaphore.Instance.InstanceIndex);
         }
 
         public override bool OnStart()
